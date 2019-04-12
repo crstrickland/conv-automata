@@ -7,8 +7,8 @@ extern "C"{
 
 // x col, y row
 __global__ void compute_state(int* board, int* new_board, int n){
-	int x = threadIdx.x;
-	int y = threadIdx.y;
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
 	int a, b;
 	int acc = 0;
 	
@@ -35,6 +35,20 @@ __global__ void compute_state(int* board, int* new_board, int n){
 }
 
 
+__global__ void compute_states_better(int* board, int* new_board, int n){
+	int x = threadIdx.x + blockIdx.x * blockDim.x;
+	int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+	extern __shared__ int sub_board[];
+
+	sub_board[(y-1) * n + (x - 1)] = board[(y - 1) * n + (x - 1)];
+	sub_board[(y-1) * n + (x + 1)] = board[(y - 1) * n + (x + 1)];
+	sub_board[(y+1) * n + (x + 1)] = board[(y + 1) * n + (x + 1)];
+	sub_board[(y+1) * n + (x + 1)] = board[(y + 1) * n + (x + 1)];
+
+}
+
+
 void print_cuda_errors(cudaError_t status)
 {
 	if (status != cudaSuccess)
@@ -57,8 +71,10 @@ int main()
 	int* d_new_board;
 	int* temp;
 
-	dim3 tPB(32, 32);
+	dim3 tPB(16, 16);
 	dim3 nB((n - 1) / tPB.x + 1, (n - 1) / tPB.y + 1);
+
+	std::cout << "using " << tPB.x << "threads, " << nB.x << " blocks" << std::endl;
 
 	uint8_t pal[] = {0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF};
 	ge_GIF *gif = ge_new_gif("example.gif", n, n, pal, 1, 0);
