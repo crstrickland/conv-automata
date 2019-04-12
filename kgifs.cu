@@ -5,14 +5,6 @@ extern "C"{
 #include "gifenc/gifenc.h"
 }
 
-__global__ void add(float* A, float* B, float* C, int n)
-{
-	int i = threadIdx.x;
-
-	if (i < n) C[i] = A[i] + B[i];
-}
-
-
 // x col, y row
 __global__ void compute_state(int* board, int* new_board, int n){
 	int x = threadIdx.x;
@@ -61,19 +53,25 @@ int main()
 	int tPB = 256;
 	int blocks = (n - 1) / tPB + 1;
 
-
 	uint8_t pal[] = {0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF};
 	ge_GIF *gif = ge_new_gif("example.gif", n, n, pal, 1, 0);
 
 	board = (int *) calloc(n * n, sizeof(int));
 
-	board[256 * 0 + 3] = 1;
 	board[256 * 1 + 3] = 1;
-      	board[256 * 1 + 4] = 1;
-	board[256 * 1 + 2] = 1;
-	board[256 * 2 + 3] = 1;	
+	board[256 * 2 + 3] = 1;
+      	board[256 * 2 + 4] = 1;
+	board[256 * 2 + 2] = 1;
+	board[256 * 3 + 3] = 1;	
 
-	// initial board state
+
+	board[256 * 200 + 100] = 1;
+	board[256 * 201 + 101] = 1;
+	board[256 * 202 + 99] = 1;
+	board[256 * 202 + 100] = 1;
+	board[256 * 202 + 101] = 1;
+
+	// add initial board state to the gif
 	for (j = 0; j < n * n; j++){gif->frame[j] = board[j];}
 
 	print_cuda_errors(cudaMallocHost(&d_board, size));
@@ -90,7 +88,7 @@ int main()
 			gif->frame[j] = board[j];
 		}
 		ge_add_frame(gif, 25);
-
+		std::cout << "added frame " << i << std::endl;
 		temp = d_board;
 		d_board = d_new_board;
 		d_new_board = temp;
