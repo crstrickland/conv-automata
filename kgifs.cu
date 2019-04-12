@@ -56,7 +56,8 @@ int main()
 	uint8_t pal[] = {0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF};
 	ge_GIF *gif = ge_new_gif("example.gif", n, n, pal, 1, 0);
 
-	board = (int *) calloc(n * n, sizeof(int));
+	print_cuda_errors(cudaMallocHost(&board, size));
+	print_cuda_errors(cudaMemset(board, 0, size));
 
 	board[256 * 1 + 3] = 1;
 	board[256 * 2 + 3] = 1;
@@ -64,18 +65,19 @@ int main()
 	board[256 * 2 + 2] = 1;
 	board[256 * 3 + 3] = 1;	
 
-
 	board[256 * 200 + 100] = 1;
 	board[256 * 201 + 101] = 1;
 	board[256 * 202 + 99] = 1;
 	board[256 * 202 + 100] = 1;
 	board[256 * 202 + 101] = 1;
 
+
 	// add initial board state to the gif
 	for (j = 0; j < n * n; j++){gif->frame[j] = board[j];}
+	ge_add_frame(gif, 25);
 
-	print_cuda_errors(cudaMallocHost(&d_board, size));
-	print_cuda_errors(cudaMallocHost(&d_new_board, size));
+	print_cuda_errors(cudaMalloc(&d_board, size));
+	print_cuda_errors(cudaMalloc(&d_new_board, size));
 		
 	print_cuda_errors(cudaMemcpy(d_board, board, size, cudaMemcpyHostToDevice));
 	
@@ -96,47 +98,9 @@ int main()
 
 	ge_close_gif(gif);
 
-	free(board);
+	print_cuda_errors(cudaFreeHost(board));
 	cudaFree(d_board);
 	cudaFree(d_new_board);
-
-	return 0;
-}
-
-int main2(){
-	
-	int i, j;
-	int frames = 50;
-	int n = 256;
-	int *board, *new_board, *temp;
-
-	board = (int *) calloc(n * n, sizeof(int));
-	new_board = (int *) calloc(n * n, sizeof(int));
-
-	uint8_t pal[] = {0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF}; 
-	ge_GIF *gif = ge_new_gif("example.gif", n, n, pal, 1, 0);
-
-	board[255 * 0 + 3] = 1U;
-	board[255 * 1 + 3] = 1U;
-	board[255 * 1 + 4] = 1U;
-	board[255 * 1 + 2] = 1U;
-	board[255 * 2 + 3] = 1U;
-
-	for (i = 0; i < frames; i++){ 
-
-		for (j = 0; j < n * n; j++){
-			gif->frame[j] = new_board[j];
-		}
-	
-		ge_add_frame(gif, 25);
-	
-		temp = board;
-		board = new_board;
-		new_board = temp;
-
-	}
-
-	ge_close_gif(gif);
 
 	return 0;
 }
