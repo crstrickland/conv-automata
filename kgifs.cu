@@ -12,9 +12,9 @@ __global__ void compute_state(int* board, int* new_board, int n){
 	int a, b;
 	int acc = 0;
 	
-	int states[9] = {0, 0, 0, 1, 0, 0, 0, 0, 0};
+	//int states[9] = {0, 0, 0, 1, 0, 0, 0, 0, 0};
 
-	states[2] = board[n * y + x];
+	//states[2] = board[n * y + x];
 	
 	for(int c = -1; c < 2; c++){
 	for(int r = -1; r < 2; r++){
@@ -24,7 +24,14 @@ __global__ void compute_state(int* board, int* new_board, int n){
 	}}
 	acc -= board[n * y + x];
 
-	new_board[n * y + x] = states[acc];
+	//new_board[n * y + x] = states[acc];
+
+	if (acc > 3) 		new_board[y * n + x] = 0;
+	else if (acc == 3) 	new_board[y * n + x] = 1;
+	else if (acc > 1) 	new_board[y * n + x] = board[n * y + x];
+	else			new_board[y * n + x] = 0;
+
+	if(acc > 0) printf("%d \n", new_board[y * n + x]);
 }
 
 
@@ -39,7 +46,7 @@ void print_cuda_errors(cudaError_t status)
 
 int main()
 {
-	int n = 256;
+	int n = 32;
        	int i, j;
 	int frames = 60;
 
@@ -50,8 +57,8 @@ int main()
 	int* d_new_board;
 	int* temp;
 
-	int tPB = 256;
-	int blocks = (n - 1) / tPB + 1;
+	dim3 tPB(32, 32);
+	dim3 nB((n - 1) / tPB.x + 1, (n - 1) / tPB.y + 1);
 
 	uint8_t pal[] = {0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF};
 	ge_GIF *gif = ge_new_gif("example.gif", n, n, pal, 1, 0);
@@ -59,17 +66,17 @@ int main()
 	print_cuda_errors(cudaMallocHost(&board, size));
 	print_cuda_errors(cudaMemset(board, 0, size));
 
-	board[256 * 1 + 3] = 1;
-	board[256 * 2 + 3] = 1;
-      	board[256 * 2 + 4] = 1;
-	board[256 * 2 + 2] = 1;
-	board[256 * 3 + 3] = 1;	
+	board[n * 1 + 3] = 1;
+	board[n * 2 + 3] = 1;
+      	board[n * 2 + 4] = 1;
+	board[n * 2 + 2] = 1;
+	board[n * 3 + 3] = 1;	
 
-	board[256 * 200 + 100] = 1;
-	board[256 * 201 + 101] = 1;
-	board[256 * 202 + 99] = 1;
-	board[256 * 202 + 100] = 1;
-	board[256 * 202 + 101] = 1;
+	board[n * 20 + 5] = 1;
+	board[n * 21 + 6] = 1;
+	board[n * 22 + 4] = 1;
+	board[n * 22 + 5] = 1;
+	board[n * 22 + 6] = 1;
 
 
 	// add initial board state to the gif
@@ -79,18 +86,26 @@ int main()
 	print_cuda_errors(cudaMalloc(&d_board, size));
 	print_cuda_errors(cudaMalloc(&d_new_board, size));
 		
-	print_cuda_errors(cudaMemcpy(d_board, board, size, cudaMemcpyHostToDevice));
+	print_cuda_errors(cudaMemcpy(d_board, board, size, cudaMemcpyDefault));
 	
-	for (i = 1; i < frames; i++){ 
+	int live;
 
-		compute_state<<<blocks, tPB>>>(d_board, d_new_board, n);
-		print_cuda_errors(cudaMemcpy(board, d_new_board, size, cudaMemcpyDeviceToHost));
+	for (i = 1; i < frames; i++){ 
+		live = 0;
+		
+		compute_state<<<nB, tPB>>>(d_board, d_new_board, n);
+		cudaDeviceSynchronize();
+		print_cuda_errors(cudaMemcpy(board, d_new_board, size, cudaMemcpyDefault));
 
 		for (j = 0; j < n * n; j++){
+			live += board[j];
 			gif->frame[j] = board[j];
 		}
 		ge_add_frame(gif, 25);
-		std::cout << "added frame " << i << std::endl;
+		std::cout << "added frame " << i << ", ";
+		std::cout << live << " cells alive" << std::endl;
+		// board is empty, but d_new_board points to the old board state
+		
 		temp = d_board;
 		d_board = d_new_board;
 		d_new_board = temp;
